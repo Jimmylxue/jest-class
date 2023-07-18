@@ -4,6 +4,8 @@
 
 npm i -D jest # 安装 jest
 
+npm i -D @types/jest # 安装类型 安装之后有语法提示
+
 npm i -D ts-node # typescript 项目必备
 
 npm i -D ts-jest # ts 环境的 jest
