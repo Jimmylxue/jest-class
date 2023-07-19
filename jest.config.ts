@@ -10,7 +10,8 @@ const config: Config = {
 	collectCoverage: true,
 	coverageDirectory: 'coverage',
 	coverageProvider: 'v8',
-	testEnvironment: 'jsdom',
+	testEnvironment: 'jsdom', // node 二者可选
+	setupFilesAfterEnv: ['./src/__test__/setup.ts'],
 }
 
 export default config
