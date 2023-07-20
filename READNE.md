@@ -1,127 +1,91 @@
-# 全局 mock 配置
+# 牛刀小试 手机号加密
 
-jest 在运行时，毕竟是在终端上运行的，所以默认的环境是 node 环境（在生成配置文件的时候也让我们选择环境了）如果选择的是 node 环境。它是没有`localStorage`、`Session`、`Cookie`、`indexedDB`、`Web SQL`、`DOM`等 API 的。而如果我们选择的是`jsdom`，我们可以理解成是在 Node.js 环境模拟的一个浏览器环境中运行，这时候它就会有这些 api 函数。
+看完三个小节的课程，下面我们可以来个简单的小题目来熟悉一下 TDD 了。
 
-> 这里需要注意，这我们可以理解成是一个阉割版的浏览器环境，api 是肯定没有真正的浏览器环境全的。
+> 下面是一个企业非常常见的需求
+
+## 场景
+
+产品经理：
+
+小豪啊，运营那边反馈我们系统这边的手机号没有做加密，都是真实的手机号，我们给它做个加密吧。就像这样：`157****9999` 这样，中间的四位数用星号表示就好了。
+
+小豪：
+
+好的。这个很快。
+
+![image-20230720221327630](https://image.jimmyxuexue.top/img/202307202213715.png)
+
+## 思考
+
+这个确实是个非常简单的需求。就是给中间的几位数换成 \* ，换平常的开发思路是不是直接就上手写代码啦？
+
+我们现在用 TDD 的方式来写。我们需要先编写测试用例：
+
+> 这个环节我们应该要把各种有可能的边界情况都考虑进去。
 >
-> 之后会慢慢深入
-
-下面我们重点来讲下如果我们选择的是 node 环境，没有一些 api，我们应该怎么让测试进行下去。
-
-> 虽然我们之前课程选的是 jsdom 环境，但是一样的道理，jsdom 也会有一些没有的 api，所以这种解决问题的思路需要统一学习的。
-
-具体我们选择的是环境可以 jest 的配置文件：
+> 前端的数据大部分情况下都来源于后端，我们也不能 100%相信后端的数据，人非圣贤，有时候我们接收的数据也有可能是错误的数据格式。如：和后端定义的是字符串类型，但是我们收到了 number 类型，或者是收到了 undefined，或者 null。不能让程序报错。
 
 ```ts
-import type { Config } from 'jest'
-
-const config: Config = {
-	clearMocks: true,
-	collectCoverage: true,
-	coverageDirectory: 'coverage',
-	coverageProvider: 'v8',
-	testEnvironment: 'node', // jsdom 二者可选 先改成node 学习mock的思路
-}
-
-export default config
-```
-
-这时候我们可以自己 mock 一个配置。
-
-> mock 这个词也是非常的形象，就是咱可以自己模拟一个。
->
-> ....换句话说就是得自己写一个类似的 API，是个挑战吧~，当然这种的肯定也是有别人已经写好了的。直接拿他们写好的就行，不过避免后续出现非常特殊和少见的 api，我们也是得学习怎么用的。
-
-## mock localStorage
-
-这里我们选择 mock 一个 localStorage，选择它是因为它的 api 足够简单，且我们对它都非常熟。
-
-我们先写一个关于 localStorage 的测试用例。
-
-```ts
-import { clear, get, set } from '../localStorage'
-
-describe('>>> test localStorage function', () => {
-	it('set and get localStorage', () => {
-		set('test', 'hello world')
-		expect(get('test')).toBe('hello world')
+// src/util/__test__/encryption.spec.ts
+describe('>>> encryption_phone', () => {
+	it('when phone is undefined', () => {
+		expect(encryptionPhone(undefined)).toBe('')
 	})
 
-	it('clear localStorage', () => {
-		set('hello', 'world')
-		expect(get('hello')).toBe('world')
-		clear()
-		expect(get('hello')).toBeFalsy()
+	it('when phone is null', () => {
+		expect(encryptionPhone(undefined)).toBe('')
+	})
+
+	it("when phone is ''", () => {
+		expect(encryptionPhone('')).toBe('')
+	})
+
+	it('when phone type of = number', () => {
+		expect(encryptionPhone(15736379999)).toBe('157****9999')
+	})
+
+	it('when phone type of = string', () => {
+		expect(encryptionPhone('15736379999')).toBe('157****9999')
 	})
 })
 ```
 
-接着写对应的 `set`、`get`、`clear` 函数。
+基于以上的单测，我们再来进行一波编码：
 
 ```ts
-// utils/localStorage.ts
-export const LOCAL_KEY = 'JEST_STUDY_KEY_'
-
-export function set(key: string, value: string) {
-	localStorage.setItem(LOCAL_KEY + key, value)
-}
-
-export function get(key: string) {
-	return localStorage.getItem(LOCAL_KEY + key)
-}
-
-export function clear() {
-	localStorage.clear()
+export function encryptionPhone(phone: any) {
+	if (phone === undefined || phone === null) {
+		return ''
+	}
+	const str = String(phone)
+	return [...str]
+		.map((char, index) => (index >= 3 && index <= 6 ? '*' : char))
+		.join('')
 }
 ```
 
-这时候我们执行测试，就会发现控制台报错了。
+编写完以上代码，我们再运行单测，结果发现测试的结果是全部通过！
+![image-20230720224121882](https://image.jimmyxuexue.top/img/202307202241936.png)
 
-![image-20230719094640514](https://image.jimmyxuexue.top/img/202307190946633.png)
-
-不出所料报的是找不到`localStorage`，和我们之前说的是一样的。
-
-```ts
-// src/__test__/setup.ts
-Object.defineProperty(global, 'localStorage', {
-	value: {
-		store: {} as Record<string, string>,
-		setItem(key: string, value: string) {
-			this.store[key] = value
-		},
-		getItem(key: string) {
-			return this.store[key]
-		},
-		removeItem(key: string) {
-			delete this.store[key]
-		},
-		clear() {
-			this.store = {}
-		},
-	},
-	configurable: true,
-})
-```
-
-在 jest 配置文件中引入这个 setup 文件
-
-```ts
-
-const config: Config = {
-	...
-	testEnvironment: 'node', // node 二者可选
-	setupFilesAfterEnv: ['./src/__test__/setup.ts'], // 引入setup文件
-}
-
-export default config
-```
-
-之后再进行测试，就会发现已经正常了。
-
-![image-20230719095255357](https://image.jimmyxuexue.top/img/202307190952444.png)
-
-当然如果我们将`testEnvironment`改成`jsdom`，也是一样能够运行的。
+当看到这绿绿的效果测试通过，心中便觉稳健，可以放心的上线了，后端不管返回什么，都不会报错，且都是预期的返回。
 
 ## 总结
 
-这里主要就是学习怎么样 mock 一些，jest 本身不认识的 api。这是一个解决思路，真正企业里的项目可能会引用各种各样的库，jest 并不都认识。所以我们是可以通过这种思路来解决一下运行单测报错的问题。
+怎么样！通过这个小 demo 感觉到 TDD 的好处了吧，或者说感觉到写一些单测的好处了吧 😄
+
+总结下来大家应该会有发现有以下的好处：
+
+- 思考变多了
+
+  我们提前的思考了可能性，再根据这些可能性去针对性的编码。降低了一些可能出现的 bug。如没有意识到可能后端返回的数据类型错误了
+
+- 自己得到满足了
+
+  看着这绿绿的 pass，太爽了
+
+- 省心了
+
+  上线的代码经过了我们自己的单测，基本不用担心线上问题。就算真的有，也就是自己确实编写单测那环节没做好，也是在积累经验，之后只会更好。
+
+最后想说，确实 TDD 非常吸引人吧~ 那大家动手吧，这个 demo 自己也写一遍。
