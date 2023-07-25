@@ -1,99 +1,122 @@
-## 回调函数 & promise
+# 牛刀小试 - 获取文件名信息
 
-重点还是要自己主动的看文档哦，这里只涉及一些常用的。
+看完上一节内容，这节我们再来做一个简单的练习题，也是一个非常常见场景和需求，我们来获取一个文件名的信息。
 
-## 回调函数
+> 这回我们采用 BDD 的方式来进行编程。
+>
+> TDD 很多小伙伴不习惯先写测试用例的习惯，那我们就用 TDD 来写，先写业务，再针对业务点进行抽象和拆分，对主要场景进行编写单测进行测试。
 
-简单过一下回调函数，我们看下这个 demo:
+## 需求分析
 
-> 虽说现在异步的代码大部分都是 promise 实现了，但是还是有一部分的老代码或者老库是支持异步回调函数的方式的，所以这块也得简单的过一下。
+一个文件名我们可以获取的信息有如下：
+
+- 文件名
+- 文件扩展名
+
+## 业务&测试代码
+
+简单的分析，我们知道一般的文件是通过`.`来进行分割的，如`test.html`，文件名是`test`，文件扩展名是`html`。基于这点理解，我们开始编写业务代码：
 
 ```ts
-function fetchData(callback: (arg: string) => void) {
-	setTimeout(() => {
-		callback('hello world')
-	}, 1000)
+// file.ts
+export function getFileName(nameString: string) {
+	if (nameString === undefined || nameString === null) {
+		return {
+			ext: '',
+			fileName: '',
+		}
+	}
+	const name = String(nameString) // 虽然我们ts限制了 参数是string类型，但是保不齐会有新手同学传不同类型的参数，所以也可以做一层防御
+	const nameArr = name.split('.')
+	const ext = nameArr[nameArr.length - 1]
+	return {
+		fileName: nameArr[0],
+		ext,
+	}
 }
 ```
 
-这种情况我们应该怎么测试呢？
+基于上面的业务代码，我们现在来编写测试代码：
 
 ```ts
-it('是否返回 hello jest', done => {
-	function callback(data: string) {
-		expect(data).toBe('hello jest')
-		done()
-	}
-	fetchData(callback)
+import { getFileName } from '../file'
+
+describe('>>> getFileName', () => {
+	it('fileName is undefined', () => {
+		expect(getFileName(undefined as any)).toEqual({
+			ext: '',
+			fileName: '',
+		})
+	})
+
+	it('fileName is null', () => {
+		expect(getFileName(null as any)).toEqual({
+			ext: '',
+			fileName: '',
+		})
+	})
+
+	it('fileName is ""', () => {
+		expect(getFileName('')).toEqual({
+			ext: '',
+			fileName: '',
+		})
+	})
+
+	it('fileName is "file.ts"', () => {
+		expect(getFileName('file.ts')).toEqual({
+			ext: 'ts',
+			fileName: 'file',
+		})
+	})
+
+	// 这个单测 测试失败
+	it('fileName is "file.ts"', () => {
+		expect(getFileName('file.spec.ts')).toEqual({
+			ext: 'ts',
+			fileName: 'file.spec',
+		})
+	})
 })
 ```
 
-这里非常关键的一点是我们在 test 里接收了一个 `done` 参数，只有当我们手动的调用了`done()`，这个测试才会进入完成状态，否则我们可以理解它是会一直在等待状态（这个感觉和 promise 的 pending 有点像是吧）
+上面的 demo 中，最后一个单测运行失败，我们获取文件名这块错误了，报的错是这个：
 
-![image-20230724222214990](https://image.jimmyxuexue.top/img/202307242222095.png)
+![image-20230725215254581](https://image.jimmyxuexue.top/img/202307252153699.png)
 
-> 如果不加 done，程序会卡一段时间（等待）。从报错信息中也提示了我们，应该加上 done
-
-这就是一个最重要的一个点，当我们需要测试一些异步回调函数时，我们就需要用到 `done` 这个函数了。
-
-## promise
-
-异步的另一个更好解决方案就是 promise！基于上面的例子，我们简单的改为 promise 来试一下：
+jest 也非常贴心的告诉我们是 fileName 没有匹配上，说明这块我们的业务代码实现的有 bug（我们获取的是数组的第一项）。所以这块我们需要更新一下对应的业务代码：
 
 ```ts
-function fetchData() {
-	return new Promise(resolve => {
-		setTimeout(() => resolve('hello jest'), 1000)
-	})
+export function getFileName(nameString: string) {
+	if (nameString === undefined || nameString === null) {
+		return {
+			ext: '',
+			fileName: '',
+		}
+	}
+	const name = String(nameString)
+	const nameArr = name.split('.')
+	const ext = nameArr[nameArr.length - 1]
+	const copyNameArr = [...nameArr]
+	copyNameArr.splice(nameArr.length - 1, 1)
+	return {
+		// fileName: nameArr[0],
+		fileName: copyNameArr.join('.'), // 不再只是获取第一项
+		ext,
+	}
 }
 ```
 
-匹配 promise 的方式有很多
+之后再运行测试用例，这时候我们的单测就完美通过了.
 
-- 使用 `then`、`catch`
+![image-20230725215656169](https://image.jimmyxuexue.top/img/202307252156214.png)
 
-  ```ts
-  it('>>> 使用   匹配器来匹配resolve', () => {
-  	expect(fetchPromise(true)).resolves.toBe('hello jest')
-  })
+## 优化
 
-  it('>>> 使用 rejects 匹配器来匹配resolve', () => {
-  	expect(fetchPromise(false)).rejects.toBe('hello reject')
-  })
-  ```
-
-- 使用 `resolves`、`rejects`
-
-  ```ts
-  it('>>> 使用 resolves 匹配器来匹配resolve', () => {
-  	expect(fetchPromise(true)).resolves.toBe('hello jest')
-  })
-
-  it('>>> 使用 rejects 匹配器来匹配resolve', () => {
-  	expect(fetchPromise(false)).rejects.toBe('hello reject')
-  })
-  ```
-
-- 使用`async/await`
-
-  ```ts
-  it('>>> 使用 async await 匹配promise', async () => {
-  	const res = await fetchPromise(true)
-  	expect(res).toBe('hello jest')
-  	try {
-  		await fetchPromise(false)
-  	} catch (error) {
-  		expect(error).toBe('hello reject')
-  	}
-  })
-  ```
-
-测试 promise 的方式有很多，见仁见智，我个人还是比较喜欢 async/await 的方式，比较符合平时开始的逻辑和流程。
+上面的代码还是能够继续优化的 想象我们平时见的文件还有那些呢？是不是还有一些隐藏文件，如`.gitignore`这种的，这块的代码我就不继续写了，大家自己给这个函数进行优化吧~🤭
 
 ## 总结
 
-这部分的内容也过完啦，现在真的是 85%的场景我们都可以写一些单测来进行测试了。
+上面的编码开发过程就是 BDD ，怎么样？和　 TDD 的编程方式大家更喜欢哪种呢？ BDD 可能会更加贴近我们平时的开发流程和模式一点 , 但是本质上二者其实差不多, 核心都是通过一些单元测试来巩固我们的代码 , 提前发现一些上线了可能会出现的 bug。
 
-下一节我们就来写一个经典案例，这回我们通过`BDD`的方式来写
-
-> 还记得 BDD 是啥吧，不知道的同学回看第五节的内容 🤭
+通过这八节课，我们系列课程的基础实战部分已经全部结束，已经可以应付绝大多数的场景的测试了。我们需要提高的无非就是一些封装和抽象思维。（这点写多了就会了）但这不意味着结束，才只是冰山一角，后面我们会进入第三部分 —— 进阶实战。
