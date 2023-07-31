@@ -1,95 +1,99 @@
-# 常见数据类型匹配器
+## 回调函数 & promise
 
-下面介绍几个最基本最常见的 jest 一些 api（官网叫做匹配器），平时写一些基本的单测是足够啦~
+重点还是要自己主动的看文档哦，这里只涉及一些常用的。
 
-> 我只会介绍几个最常用的，也是后面的课程会用到的，想学习最为完整的 API，大家还是应该要完整的看下 jest 的官网的。一定要看文档！文档才最大而全的。
->
-> [jest API 文档](https://jestjs.io/zh-Hans/docs/using-matchers)
+## 回调函数
 
-![image-20230723210222387](https://image.jimmyxuexue.top/img/202307232102735.png)
+简单过一下回调函数，我们看下这个 demo:
 
-## 基本类型测试
-
-基本数据类型的测试
-
-### string
+> 虽说现在异步的代码大部分都是 promise 实现了，但是还是有一部分的老代码或者老库是支持异步回调函数的方式的，所以这块也得简单的过一下。
 
 ```ts
-it('>>> string type', () => {
-	expect('hello').toBe('hello')
-	expect('hello').toEqual('hello')
+function fetchData(callback: (arg: string) => void) {
+	setTimeout(() => {
+		callback('hello world')
+	}, 1000)
+}
+```
+
+这种情况我们应该怎么测试呢？
+
+```ts
+it('是否返回 hello jest', done => {
+	function callback(data: string) {
+		expect(data).toBe('hello jest')
+		done()
+	}
+	fetchData(callback)
 })
 ```
 
-### number
+这里非常关键的一点是我们在 test 里接收了一个 `done` 参数，只有当我们手动的调用了`done()`，这个测试才会进入完成状态，否则我们可以理解它是会一直在等待状态（这个感觉和 promise 的 pending 有点像是吧）
+
+![image-20230724222214990](https://image.jimmyxuexue.top/img/202307242222095.png)
+
+> 如果不加 done，程序会卡一段时间（等待）。从报错信息中也提示了我们，应该加上 done
+
+这就是一个最重要的一个点，当我们需要测试一些异步回调函数时，我们就需要用到 `done` 这个函数了。
+
+## promise
+
+异步的另一个更好解决方案就是 promise！基于上面的例子，我们简单的改为 promise 来试一下：
 
 ```ts
-it('>>> test number', () => {
-	expect(1).toBe(1)
-	expect(2).toEqual(2)
-})
+function fetchData() {
+	return new Promise(resolve => {
+		setTimeout(() => resolve('hello jest'), 1000)
+	})
+}
 ```
 
-### boolean
+匹配 promise 的方式有很多
 
-```ts
-it('>>> test boolean', () => {
-	expect(true).toBe(true)
-	expect(false).toEqual(false)
-	expect(false).toBeFalsy()
-	expect(true).toBeTruthy()
-})
-```
+- 使用 `then`、`catch`
 
-### undefined
+  ```ts
+  it('>>> 使用   匹配器来匹配resolve', () => {
+  	expect(fetchPromise(true)).resolves.toBe('hello jest')
+  })
 
-```ts
-it('>>> test undefined', () => {
-	expect(undefined).toBe(undefined)
-	expect(undefined).toBeUndefined()
-})
-```
+  it('>>> 使用 rejects 匹配器来匹配resolve', () => {
+  	expect(fetchPromise(false)).rejects.toBe('hello reject')
+  })
+  ```
 
-### null
+- 使用 `resolves`、`rejects`
 
-```ts
-it('>>> test null', () => {
-	expect(null).toBe(null)
-	expect(null).toBeNull()
-})
-```
+  ```ts
+  it('>>> 使用 resolves 匹配器来匹配resolve', () => {
+  	expect(fetchPromise(true)).resolves.toBe('hello jest')
+  })
 
-眼尖的同学可能会发现基本数据类型少了`Symbol`是吧，确实少了它，用的比较少，大家可以在文档里找找它所对应的用法。
+  it('>>> 使用 rejects 匹配器来匹配resolve', () => {
+  	expect(fetchPromise(false)).rejects.toBe('hello reject')
+  })
+  ```
 
-接下来就是重点的引用数据类型了，也就是我们最为常见的数组和对象了
+- 使用`async/await`
 
-## 引用数据类型
+  ```ts
+  it('>>> 使用 async await 匹配promise', async () => {
+  	const res = await fetchPromise(true)
+  	expect(res).toBe('hello jest')
+  	try {
+  		await fetchPromise(false)
+  	} catch (error) {
+  		expect(error).toBe('hello reject')
+  	}
+  })
+  ```
 
-引用数据类似的测试和基本数据类型有所区别。
-
-### array
-
-```ts
-it('>>> test array', () => {
-	const arr = [1, 2, 3]
-	// expect(arr).toBe([1, 2, 3])  测试不会痛通过的，这两个数组只是看起来像 但是他们引用的地址并不是同一个
-	expect(arr).toBe(arr)
-	expect(arr).toEqual([1, 2, 3]) // 这个测试是会通过的，我们可以理解成这是一定 字符比较 ，toEqual比较的并非是地址比较
-})
-```
-
-### object
-
-```ts
-it('>>> test array', () => {
-	const fn = () => ({ name: 'jimmy' })
-	// expect(fn()).toBe({name:'jimmy'})  测试不会痛通过的，这两个数组只是看起来像 但是他们引用的地址并不是同一个
-	expect(fn()).toEqual({ name: 'jimmy' }) // 这个测试是会通过的，我们可以理解成这是一定 字符比较 ，toEqual比较的并非是地址比较
-})
-```
-
-通过这两个例子应该是可以非常清晰的知道了`toBe`和`toEqual`的区别了，以及在什么场景下对应要用哪个 API 了。虽然它们两个非常像。总结下来是，在测试基本数据类型的情况下，`toBe`和`toEqual`基本没有什么区别，但是在引用数据类型时，二者就是比较地址和比较字符的区别了。
+测试 promise 的方式有很多，见仁见智，我个人还是比较喜欢 async/await 的方式，比较符合平时开始的逻辑和流程。
 
 ## 总结
 
-这个小节就讲这些内容就好了。下一章我们再过以下基本的回调函数和 promise，基本 80%的代码场景我们都能对应的写一些单元测试啦 🤭，最后重要的事情说三遍，大家一定要自发主动的去：看文档！看文档！看文档！
+这部分的内容也过完啦，现在真的是 85%的场景我们都可以写一些单测来进行测试了。
+
+下一节我们就来写一个经典案例，这回我们通过`BDD`的方式来写
+
+> 还记得 BDD 是啥吧，不知道的同学回看第五节的内容 🤭
