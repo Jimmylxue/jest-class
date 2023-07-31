@@ -1,122 +1,154 @@
-# 牛刀小试 - 获取文件名信息
+# Timer 定时器测试
 
-看完上一节内容，这节我们再来做一个简单的练习题，也是一个非常常见场景和需求，我们来获取一个文件名的信息。
+定时器`setTimerout` 是非常常用的一个api，比如我们想要在1000ms后做某件事情，这时候我们就会需要使用这个api，所以我们需要来学习一下如何测试这个api。
 
-> 这回我们采用 BDD 的方式来进行编程。
->
-> TDD 很多小伙伴不习惯先写测试用例的习惯，那我们就用 TDD 来写，先写业务，再针对业务点进行抽象和拆分，对主要场景进行编写单测进行测试。
+>这节算是进阶课程内容了，我们会学习几个新的api。学习几个新的测试思路
 
-## 需求分析
+## 案例
 
-一个文件名我们可以获取的信息有如下：
-
-- 文件名
-- 文件扩展名
-
-## 业务&测试代码
-
-简单的分析，我们知道一般的文件是通过`.`来进行分割的，如`test.html`，文件名是`test`，文件扩展名是`html`。基于这点理解，我们开始编写业务代码：
+举个例子🌰，我们需要4s后执行某段程序。代码如下：
 
 ```ts
-// file.ts
-export function getFileName(nameString: string) {
-	if (nameString === undefined || nameString === null) {
-		return {
-			ext: '',
-			fileName: '',
-		}
-	}
-	const name = String(nameString) // 虽然我们ts限制了 参数是string类型，但是保不齐会有新手同学传不同类型的参数，所以也可以做一层防御
-	const nameArr = name.split('.')
-	const ext = nameArr[nameArr.length - 1]
-	return {
-		fileName: nameArr[0],
-		ext,
-	}
+export function after4000ms(fn: (args: string) => string) {
+	setTimeout(() => {
+		fn('hello timer')
+	}, 4000)
 }
 ```
 
-基于上面的业务代码，我们现在来编写测试代码：
+> 很眼熟是吧，和我们前一节学习异步回调函数的demo基本一样。
+>
+> 但是那时候我们只能实现说确实知道是异步的，但是并不知道是不是具体的4000ms。
+
+## 编写单测
+
+### 使用旧知识
+
+看到这个demo，第一想法大家会怎样编写测试用例呢？我第一想法是这么写的：
 
 ```ts
-import { getFileName } from '../file'
-
-describe('>>> getFileName', () => {
-	it('fileName is undefined', () => {
-		expect(getFileName(undefined as any)).toEqual({
-			ext: '',
-			fileName: '',
-		})
-	})
-
-	it('fileName is null', () => {
-		expect(getFileName(null as any)).toEqual({
-			ext: '',
-			fileName: '',
-		})
-	})
-
-	it('fileName is ""', () => {
-		expect(getFileName('')).toEqual({
-			ext: '',
-			fileName: '',
-		})
-	})
-
-	it('fileName is "file.ts"', () => {
-		expect(getFileName('file.ts')).toEqual({
-			ext: 'ts',
-			fileName: 'file',
-		})
-	})
-
-	// 这个单测 测试失败
-	it('fileName is "file.ts"', () => {
-		expect(getFileName('file.spec.ts')).toEqual({
-			ext: 'ts',
-			fileName: 'file.spec',
-		})
-	})
+it('第一想法', () => {
+  const testFn = (str: string) => {
+    expect(str).toBe('hello timer')
+    return str
+  }
+  after4000ms(testFn)
 })
 ```
 
-上面的 demo 中，最后一个单测运行失败，我们获取文件名这块错误了，报的错是这个：
+执行这个单测之后呢，是通过的，但是时间上显然是不对的。
 
-![image-20230725215254581](https://image.jimmyxuexue.top/img/202307252153699.png)
+![image-20230731111118088](https://image.jimmyxuexue.top/img/202307311111200.png)
 
-jest 也非常贴心的告诉我们是 fileName 没有匹配上，说明这块我们的业务代码实现的有 bug（我们获取的是数组的第一项）。所以这块我们需要更新一下对应的业务代码：
+这个单测只执行了小于1s的时间，并没有定时器的概念。所以这么测试是不对的。
+
+之前讲回调函数的时候，我们说过涉及异步的回调函数，我们可以使用 `done` 函数来等待timer结束。所以我们基于这点知识，我们再来重构一下我们的测试用例：
 
 ```ts
-export function getFileName(nameString: string) {
-	if (nameString === undefined || nameString === null) {
-		return {
-			ext: '',
-			fileName: '',
-		}
-	}
-	const name = String(nameString)
-	const nameArr = name.split('.')
-	const ext = nameArr[nameArr.length - 1]
-	const copyNameArr = [...nameArr]
-	copyNameArr.splice(nameArr.length - 1, 1)
-	return {
-		// fileName: nameArr[0],
-		fileName: copyNameArr.join('.'), // 不再只是获取第一项
-		ext,
-	}
-}
+it('使用 done 测试', done => {
+  const testFn = (str: string) => {
+    expect(str).toBe('hello timer')
+    done()
+    return str
+  }
+  after4000ms(testFn)
+})
 ```
 
-之后再运行测试用例，这时候我们的单测就完美通过了.
+我们这样测试了之后，程序的执行时间好像确实是久了，输出的内容如下：
+![image-20230731111559387](https://image.jimmyxuexue.top/img/202307311115434.png)
 
-![image-20230725215656169](https://image.jimmyxuexue.top/img/202307252156214.png)
+耗时将近5s，看起来正常，但是我们想象一下，如果有的电脑设备他比较老，算力比较低，可能本身的定时器时间是2s，但是脚本执行下来花了将近5s，也是有可能的，所以我们本质上并没有确切的知道它回调函数的执行时间。
 
-## 优化
+所以我们得再做一次调整：
 
-上面的代码还是能够继续优化的 想象我们平时见的文件还有那些呢？是不是还有一些隐藏文件，如`.gitignore`这种的，这块的代码我就不继续写了，大家自己给这个函数进行优化吧~🤭
+```ts
+it('测试时间过了 1000ms', done => {
+  const startTime = Date.now()
+  const testFn = (str: string) => {
+    const endTime = Date.now()
+    expect(endTime - startTime > 4000).toBeTruthy()
+    expect(str).toBe('hello timer')
+    done()
+    return str
+  }
+  after4000ms(testFn)
+})
+```
+
+这样写了之后，再看输出，也是通过的，最重要的是`expect(endTime - startTime > 4000).toBeTruthy()`，说明执行时间确实是4s后。
+
+![image-20230731111916458](https://image.jimmyxuexue.top/img/202307311119494.png)
+
+#### 存在的问题
+
+看起来我们好像已经能够很完美的测试了，但是我们发现这样写我们必须每次都等待定时器执行结束，如果定时器是1min后执行，那我们程序就会等待1min。
+
+> jest 本身如果等待时间超过5s 就会报错了
+
+所以以上并不是正确的解决思路。jest实质上提供了专门的api用于我们测试。下面我们来学习一下。
+
+### 官网优解
+
+#### 使用mock的方案
+
+```ts
+it('模拟时间&模拟api', () => {
+  jest.useFakeTimers()
+  jest.spyOn(global, 'setTimeout')
+  expect(setTimeout).toHaveBeenCalledTimes(0)
+  after4000ms(() => 'demo')
+  expect(setTimeout).toHaveBeenCalledTimes(1) // 执行1次
+  expect(setTimeout).toHaveBeenCalledWith(expect.any(Function), 4000) // 4000ms调用
+})
+```
+
+- useFakeTimer()
+
+  使用伪造的时间
+
+- spyOn
+
+  模拟api
+
+> 这些api其实我们看名字就能知道对应的意思，fake（伪造的），spy（间谍）
+
+核心思路:
+
+我们`after4000ms`这个函数是使用 `setTimerout` 来实现的，我们我们只需要判断`setTimerout`的执行次数和执行时间就可以了。
+
+#### 继续优化
+
+上面的例子我们只是监听了`setTimerout`的执行次数，如果单测内本身就有写了`setTimerout`，那这样写就不准了，也会增加一些心智负担，我们我们要准确的知道一个函数是否被调用了，我们可以使用`jest.fn()` 创建一个mock函数
+
+```ts
+it('1000ms后函数确实被调用了', () => {
+  jest.useFakeTimers()
+  jest.spyOn(global, 'setTimeout')
+  const fn = jest.fn()
+  after4000ms(fn)
+  expect(fn).toHaveBeenCalledTimes(0) // fn 函数被调用0次
+  jest.runAllTimers()
+  expect(setTimeout).toHaveBeenCalledTimes(1) // fn 函数被调用1次
+  expect(setTimeout).toHaveBeenCalledWith(expect.any(Function), 4000)
+})
+```
+
+- Jest.fn
+
+  我们可以通过这个api来mock一个函数，通过这个函数我么可以知道这个函数的很多信息，如是否被调用等等。
+
+- jest.runAllTimers()
+
+  相当于快进时间。
 
 ## 总结
 
-上面的编码开发过程就是 BDD ，怎么样？和　 TDD 的编程方式大家更喜欢哪种呢？ BDD 可能会更加贴近我们平时的开发流程和模式一点 , 但是本质上二者其实差不多, 核心都是通过一些单元测试来巩固我们的代码 , 提前发现一些上线了可能会出现的 bug。
+这节关于定时器的单测用例编写内容就到这里了，我们主要是学习了几个新的api：
 
-通过这八节课，我们系列课程的基础实战部分已经全部结束，已经可以应付绝大多数的场景的测试了。我们需要提高的无非就是一些封装和抽象思维。（这点写多了就会了）但这不意味着结束，才只是冰山一角，后面我们会进入第三部分 —— 进阶实战。
+- useFakeTime
+- spyOn
+- fn
+- runAllTimers
+
+以上的内容大家需要自行课后实现一次，更能加深理解。
