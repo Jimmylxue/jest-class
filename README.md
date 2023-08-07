@@ -1,4 +1,4 @@
-# react 系列测试
+# 初识 react 测试
 
 之前讲的一些单元测试属于的是最为基层的测试，关注点在于一些核心的业务逻辑的抽象，进行细致的测试。
 
@@ -9,7 +9,7 @@ pnpm add -D @testing-library/react # 测试react的核心库
 pnpm add -D @babel/preset-react # 转译react语法的babel库
 ```
 
-配置babel.config.cjs
+配置 babel.config.cjs
 
 ```ts
 module.exports = {
@@ -22,7 +22,8 @@ module.exports = {
 				},
 			},
 		],
-		[ // 这部分是新增的
+		[
+			// 这部分是新增的
 			'@babel/preset-react',
 			{
 				runtime: 'automatic',
@@ -33,11 +34,11 @@ module.exports = {
 }
 ```
 
-> 为什么要配置babel？
+> 为什么要配置 babel？
 >
-> 我们可以理解babel为一个语法转译器，我们比较熟知的是，为了兼容一些低版本的浏览器、工具库之类的，使用babel可以将一些高级的js语法转译成es5的语法。所以使用babel可以实现语法转译。
+> 我们可以理解 babel 为一个语法转译器，我们比较熟知的是，为了兼容一些低版本的浏览器、工具库之类的，使用 babel 可以将一些高级的 js 语法转译成 es5 的语法。所以使用 babel 可以实现语法转译。
 >
-> 但是babel功力不止于此，在测试时，我们需要使用babel转译react的语法
+> 但是 babel 功力不止于此，在测试时，我们需要使用 babel 转译 react 的语法
 
 这里我们需要安装一下这个针对 react 的测试库，之所以选用这个，是因为之前接触的一直是这个，也是非常好用，文档很全。
 
@@ -73,7 +74,7 @@ export default function CheckboxWithLabel({ labelOn, labelOff }: TProps) {
 }
 ```
 
-这是一个常见的简单组件，给checkboox支持了开启和关闭时对应的文案显示。那这个组件我们应该怎么进行测试呢？
+这是一个常见的简单组件，给 checkboox 支持了开启和关闭时对应的文案显示。那这个组件我们应该怎么进行测试呢？
 
 下面我们看下应该怎么编写对应的组件测试代码。
 
@@ -106,4 +107,4 @@ describe('>>> component CheckboxWithLabel', () => {
 
 ## 总结
 
-这节我们了解react侧相关的测试，并跟着官网写了一个简单的hello world，后面我们会逐步深入，了解快照测试、组件测试、hooks测试相关的内容。
+这节我们了解 react 侧相关的测试，并跟着官网写了一个简单的 hello world，后面我们会逐步深入，了解快照测试、组件测试、hooks 测试相关的内容。
