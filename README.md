@@ -1,75 +1,109 @@
-# mock fn 内容补充
+# react 系列测试
 
-前几节我们都涉及到一个`jest.fn`这个 api，使用它 mock 出来的函数，我们可以知道这个函数是否被调用，或者被调用了几次。
+之前讲的一些单元测试属于的是最为基层的测试，关注点在于一些核心的业务逻辑的抽象，进行细致的测试。
 
-但是我们通常测试函数时，除了要测试函数是否被调用，重头戏应该是：
+但我们真正深入公司业务开发的过程中，除了单元测试，大家应该都听过一些其他测试，如快照测试、组件测试、e2e 之类的词语。后面我们都会慢慢的接触到它。
 
-- 函数接收的参数
-- 函数的返回值
+```
+pnpm add -D @testing-library/react # 测试react的核心库
+pnpm add -D @babel/preset-react # 转译react语法的babel库
+```
 
-所以我们就简单的过一下，应该如何测试这两个场景：
-
-> 一样也是基于 `jest.fn`
-
-## 案例
-
-我们来看下这个 demo:
-
-**业务代码**
+配置babel.config.cjs
 
 ```ts
-export function testTwoFn(fn1: () => void, fn2: (count?: number) => void) {
-	setTimeout(() => {
-		console.log('fn1 running!')
-		fn1()
-	}, 2000)
-
-	setTimeout(() => {
-		console.log('fn2 running!')
-		fn2(3)
-	}, 4000)
+module.exports = {
+	presets: [
+		[
+			'@babel/preset-env',
+			{
+				targets: {
+					node: true,
+				},
+			},
+		],
+		[ // 这部分是新增的
+			'@babel/preset-react',
+			{
+				runtime: 'automatic',
+			},
+		],
+		'@babel/preset-typescript',
+	],
 }
 ```
 
-核心逻辑就是 2 秒执行 fn1，4 秒执行 fn2，同时 fn2 是会传递一个 count 参数的。所以基于这个我们就可以写出以下的测试代码：
+> 为什么要配置babel？
+>
+> 我们可以理解babel为一个语法转译器，我们比较熟知的是，为了兼容一些低版本的浏览器、工具库之类的，使用babel可以将一些高级的js语法转译成es5的语法。所以使用babel可以实现语法转译。
+>
+> 但是babel功力不止于此，在测试时，我们需要使用babel转译react的语法
 
-**对应测试**
+这里我们需要安装一下这个针对 react 的测试库，之所以选用这个，是因为之前接触的一直是这个，也是非常好用，文档很全。
+
+> [jest 的官网](https://jestjs.io/docs/tutorial-react)现在首选推荐的是 `react-test-renderer` 这个库，这个大家也可以去看看，这个系列的文档就不涉及了。
+
+## hello world
+
+下面我们来写个简单的 hello world，先简单的接触一下，这块应该如何做。
+
+### 业务组件
+
+```tsx
+import { useState } from 'react'
+
+type TProps = {
+	labelOn: string
+	labelOff: string
+}
+
+export default function CheckboxWithLabel({ labelOn, labelOff }: TProps) {
+	const [isChecked, setIsChecked] = useState(false)
+
+	const onChange = () => {
+		setIsChecked(!isChecked)
+	}
+
+	return (
+		<label>
+			<input type="checkbox" checked={isChecked} onChange={onChange} />
+			{isChecked ? labelOn : labelOff}
+		</label>
+	)
+}
+```
+
+这是一个常见的简单组件，给checkboox支持了开启和关闭时对应的文案显示。那这个组件我们应该怎么进行测试呢？
+
+下面我们看下应该怎么编写对应的组件测试代码。
+
+### 组件测试
 
 ```ts
-describe('>>> jest.fn', () => {
-	it('test fn return', () => {
-		jest.useFakeTimers()
-		const fn1 = jest.fn(() => {})
-		const fn2 = jest.fn(num => num + 1)
+import { render, fireEvent } from '@testing-library/react'
+import { CheckboxWithLabel } from '..'
 
-		testTwoFn(fn1, fn2)
+describe('>>> component CheckboxWithLabel', () => {
+	it('CheckboxWithLabel changes the text after click', () => {
+		const { queryByLabelText, getByLabelText } = render(
+			<CheckboxWithLabel labelOn="开启" labelOff="关闭" />
+		)
 
-		jest.runAllTimers()
+		expect(queryByLabelText('关闭')).toBeTruthy()
 
-		expect(fn1).toBeCalled()
-		expect(fn2).toBeCalled()
+		fireEvent.click(getByLabelText('关闭'))
 
-		// 测试 函数接受的形参
-		expect(fn2).toBeCalledWith(3)
+		expect(queryByLabelText('关闭')).toBeFalsy()
 
-		// 测试 函数的返回值
-		expect(fn2).toHaveReturnedWith(4)
+		expect(queryByLabelText('开启')).toBeTruthy()
 	})
 })
 ```
 
-以上的代码最为关键的其实就是我们学会了两个新的 api：
+这个测试我们用了`@testing-library/react`这个库的`render`和`fireEvent`方法，测试了这个组件在不同状态下对应文案的展示。
 
-- toBeCalledWith
-
-  函数被调用时伴随的参数
-
-- toHaveReturnedWith
-
-  伴随函数返回时的值
-
-基于以上的两个 api，我们就可以知道这两个场景下的内容了。
+> 看测试组件的代码，其实并不难对吧。
 
 ## 总结
 
-这个小节作为前面的课程内容的知识点补充小节，所以内容非常简短，再结合前面的内容，掌握了我们就基本可以非常轻松的模拟几乎所有的函数调用的场景了。后面我们再一一的继续深入学习。
+这节我们了解react侧相关的测试，并跟着官网写了一个简单的hello world，后面我们会逐步深入，了解快照测试、组件测试、hooks测试相关的内容。
