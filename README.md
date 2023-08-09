@@ -1,154 +1,139 @@
-# Timer 定时器测试
+# Timer 内容补充
 
-定时器`setTimerout` 是非常常用的一个api，比如我们想要在1000ms后做某件事情，这时候我们就会需要使用这个api，所以我们需要来学习一下如何测试这个api。
-
->这节算是进阶课程内容了，我们会学习几个新的api。学习几个新的测试思路
+上节 timer 相关的内容涉及了比较多的新知识点，如果第一次接触可能会有觉得有点难以理解，所以接下来会出几节会以案例的方式对内容进行只是补充，主要的目的就是为了再复习一下这块的测试方式和流程。
 
 ## 案例
 
-举个例子🌰，我们需要4s后执行某段程序。代码如下：
+下面我们来看个官网的案例：[官网 timer 案例](https://jestjs.io/zh-Hans/docs/timer-mocks)
+
+**业务代码**
 
 ```ts
-export function after4000ms(fn: (args: string) => string) {
+export function timerGame(callback?: () => void) {
+	console.log('Ready....go!')
 	setTimeout(() => {
-		fn('hello timer')
+		console.log("Time's up -- stop!")
+		callback && callback()
+	}, 1000)
+}
+```
+
+**对应测试**
+
+```ts
+it('简单测试timer 等待1s', () => {
+	jest.useFakeTimers() //这个甚至可以不用写。
+	jest.spyOn(global, 'setTimeout')
+	timerGame(() => {})
+
+	expect(setTimeout).toHaveBeenCalledTimes(1)
+	expect(setTimeout).toHaveBeenLastCalledWith(expect.any(Function), 1000)
+})
+```
+
+在这个案例中我们的测试逻辑其实是通过`spyOn`来创建一个模拟的`setTimeout`，然后判断`setTimeout`被执行的次数来判断 timerGame 的业务逻辑是否正确的。
+
+在这个案例中 `jest.useFakeTimers()` 这个甚至不需要使用。但是这个测试并不完善。我们并没有对`timerGame` 函数传递的回调函数进行测试。所以我们就需要使用到`jest.fn`
+
+**使用 jest.fn 配合 jest.useFakeTimers**
+
+```ts
+it('calls the callback after 1 second', () => {
+	jest.useFakeTimers()
+	const callback = jest.fn()
+
+	timerGame(callback)
+
+	// 期待函数还没有被调用
+	expect(callback).not.toBeCalled()
+
+	// 运行所有的timer
+	jest.runAllTimers()
+
+	// 到这里 所有的Timer时间都过了
+	expect(callback).toBeCalled()
+	expect(callback).toHaveBeenCalledTimes(1)
+})
+```
+
+以上这个 demo 我们就能很好的知道`jest.useFakeTimers`的用处了，使用它再配合上`jest.fn` 就可以很好的知道一个函数到底是否被调用了。
+
+这个测试对于上一个测试来说我又更进了一步，不仅知道了`setTimeout`被调用了，传递的回调函数也可以很清晰的知道是被调用了。
+
+> jest.useFakeTimers 配合 jest.fn 一起使用
+
+**更进一步**
+
+看以下这个 demo：
+
+```ts
+export function testTwoFn(fn1: () => void, fn2: (str?: string) => void) {
+	setTimeout(() => {
+		console.log('fn1 running!')
+		fn1()
+	}, 2000)
+
+	setTimeout(() => {
+		console.log('fn2 running!')
+		fn2('hello world')
 	}, 4000)
 }
 ```
 
-> 很眼熟是吧，和我们前一节学习异步回调函数的demo基本一样。
->
-> 但是那时候我们只能实现说确实知道是异步的，但是并不知道是不是具体的4000ms。
+我们简单读代码知道核心逻辑是 2 秒执行 fn1，4 秒执行 fn2。通过我们前面学到的知识和 api 是不能够测试这种场景的，因为`jest.runAllTimers`会直接把时间拉满，没有办法测试具体的一些一个时间点。
 
-## 编写单测
+不过这个 jest 也为我们想好了，这里我们学习一个新的 api ：`jest.advanceTimersByTime()` 可以传对应的毫秒数。
 
-### 使用旧知识
-
-看到这个demo，第一想法大家会怎样编写测试用例呢？我第一想法是这么写的：
+我们可以把这个 api 理解成是：时间推进
 
 ```ts
-it('第一想法', () => {
-  const testFn = (str: string) => {
-    expect(str).toBe('hello timer')
-    return str
-  }
-  after4000ms(testFn)
+describe('>>> test advancertimersbytime', () => {
+	it('test 1.9 second function status', () => {
+		const fn1 = jest.fn()
+		const fn2 = jest.fn()
+		jest.useFakeTimers()
+		testTwoFn(fn1, fn2)
+		expect(fn1).not.toBeCalled()
+		expect(fn2).not.toBeCalled()
+
+		jest.advanceTimersByTime(1900)
+
+		expect(fn1).not.toBeCalled()
+		expect(fn2).not.toBeCalled()
+	})
+
+	it('test 2 second function status', () => {
+		const fn1 = jest.fn()
+		const fn2 = jest.fn()
+		jest.useFakeTimers()
+		testTwoFn(fn1, fn2)
+		expect(fn1).not.toBeCalled()
+		expect(fn2).not.toBeCalled()
+
+		jest.advanceTimersByTime(2000)
+
+		expect(fn1).toBeCalled()
+		expect(fn2).not.toBeCalled()
+	})
+
+	it('test 4 second function status', () => {
+		const fn1 = jest.fn()
+		const fn2 = jest.fn()
+		jest.useFakeTimers()
+		testTwoFn(fn1, fn2)
+		expect(fn1).not.toBeCalled()
+		expect(fn2).not.toBeCalled()
+		jest.advanceTimersByTime(4000)
+		expect(fn1).toBeCalled()
+		expect(fn2).toBeCalled()
+	})
 })
 ```
 
-执行这个单测之后呢，是通过的，但是时间上显然是不对的。
-
-![image-20230731111118088](https://image.jimmyxuexue.top/img/202307311111200.png)
-
-这个单测只执行了小于1s的时间，并没有定时器的概念。所以这么测试是不对的。
-
-之前讲回调函数的时候，我们说过涉及异步的回调函数，我们可以使用 `done` 函数来等待timer结束。所以我们基于这点知识，我们再来重构一下我们的测试用例：
-
-```ts
-it('使用 done 测试', done => {
-  const testFn = (str: string) => {
-    expect(str).toBe('hello timer')
-    done()
-    return str
-  }
-  after4000ms(testFn)
-})
-```
-
-我们这样测试了之后，程序的执行时间好像确实是久了，输出的内容如下：
-![image-20230731111559387](https://image.jimmyxuexue.top/img/202307311115434.png)
-
-耗时将近5s，看起来正常，但是我们想象一下，如果有的电脑设备他比较老，算力比较低，可能本身的定时器时间是2s，但是脚本执行下来花了将近5s，也是有可能的，所以我们本质上并没有确切的知道它回调函数的执行时间。
-
-所以我们得再做一次调整：
-
-```ts
-it('测试时间过了 1000ms', done => {
-  const startTime = Date.now()
-  const testFn = (str: string) => {
-    const endTime = Date.now()
-    expect(endTime - startTime > 4000).toBeTruthy()
-    expect(str).toBe('hello timer')
-    done()
-    return str
-  }
-  after4000ms(testFn)
-})
-```
-
-这样写了之后，再看输出，也是通过的，最重要的是`expect(endTime - startTime > 4000).toBeTruthy()`，说明执行时间确实是4s后。
-
-![image-20230731111916458](https://image.jimmyxuexue.top/img/202307311119494.png)
-
-#### 存在的问题
-
-看起来我们好像已经能够很完美的测试了，但是我们发现这样写我们必须每次都等待定时器执行结束，如果定时器是1min后执行，那我们程序就会等待1min。
-
-> jest 本身如果等待时间超过5s 就会报错了
-
-所以以上并不是正确的解决思路。jest实质上提供了专门的api用于我们测试。下面我们来学习一下。
-
-### 官网优解
-
-#### 使用mock的方案
-
-```ts
-it('模拟时间&模拟api', () => {
-  jest.useFakeTimers()
-  jest.spyOn(global, 'setTimeout')
-  expect(setTimeout).toHaveBeenCalledTimes(0)
-  after4000ms(() => 'demo')
-  expect(setTimeout).toHaveBeenCalledTimes(1) // 执行1次
-  expect(setTimeout).toHaveBeenCalledWith(expect.any(Function), 4000) // 4000ms调用
-})
-```
-
-- useFakeTimer()
-
-  使用伪造的时间
-
-- spyOn
-
-  模拟api
-
-> 这些api其实我们看名字就能知道对应的意思，fake（伪造的），spy（间谍）
-
-核心思路:
-
-我们`after4000ms`这个函数是使用 `setTimerout` 来实现的，我们我们只需要判断`setTimerout`的执行次数和执行时间就可以了。
-
-#### 继续优化
-
-上面的例子我们只是监听了`setTimerout`的执行次数，如果单测内本身就有写了`setTimerout`，那这样写就不准了，也会增加一些心智负担，我们我们要准确的知道一个函数是否被调用了，我们可以使用`jest.fn()` 创建一个mock函数
-
-```ts
-it('1000ms后函数确实被调用了', () => {
-  jest.useFakeTimers()
-  jest.spyOn(global, 'setTimeout')
-  const fn = jest.fn()
-  after4000ms(fn)
-  expect(fn).toHaveBeenCalledTimes(0) // fn 函数被调用0次
-  jest.runAllTimers()
-  expect(setTimeout).toHaveBeenCalledTimes(1) // fn 函数被调用1次
-  expect(setTimeout).toHaveBeenCalledWith(expect.any(Function), 4000)
-})
-```
-
-- Jest.fn
-
-  我们可以通过这个api来mock一个函数，通过这个函数我么可以知道这个函数的很多信息，如是否被调用等等。
-
-- jest.runAllTimers()
-
-  相当于快进时间。
+基于这个知识点，我们可以很好很方便的精准定位每个时间点时的一些状态以及对应的做一些测试。
 
 ## 总结
 
-这节关于定时器的单测用例编写内容就到这里了，我们主要是学习了几个新的api：
+相信通过官网的这两个案例，大家能够很清晰的知道哪个场景下具体应该怎测试了。就是`timer`相关的 api 进行对应的场景的配合使用。
 
-- useFakeTime
-- spyOn
-- fn
-- runAllTimers
-
-以上的内容大家需要自行课后实现一次，更能加深理解。
+下节课我们通过一个短节再来重新的认识一下`jest.fn`
